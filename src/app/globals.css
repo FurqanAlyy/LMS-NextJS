@@ -1,0 +1,90 @@
+@import "tailwindcss";
+@theme inline {
+  --color-ink: #172c29;
+  --color-muted: #687874;
+  --color-brand: #24715b;
+  --color-mint: #e5f2e9;
+  --color-paper: #f8faf7;
+  --font-sans: Arial, Helvetica, sans-serif;
+}
+@layer base {
+  body {
+    @apply bg-paper text-ink antialiased;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  :focus-visible {
+    outline: 3px solid #93cbb3;
+    outline-offset: 3px;
+  }
+  input,
+  select,
+  textarea {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/10;
+  }
+  label {
+    @apply text-sm font-medium;
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.035em;
+  }
+}
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-7xl px-5 sm:px-8;
+  }
+  .btn {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:border-brand hover:bg-mint;
+  }
+  .btn-ghost {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted hover:bg-mint hover:text-ink;
+  }
+  .card {
+    @apply rounded-2xl border border-slate-200/80 bg-white;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full bg-mint px-2.5 py-1 text-xs font-semibold text-brand;
+  }
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[.18em] text-brand;
+  }
+  .heading {
+    @apply text-3xl font-semibold sm:text-4xl;
+  }
+  .field {
+    @apply grid gap-2;
+  }
+  .field-error {
+    @apply text-xs text-red-600;
+  }
+  .table-wrap {
+    @apply overflow-x-auto rounded-2xl border border-slate-200 bg-white;
+  }
+  .data-table {
+    @apply w-full whitespace-nowrap text-left text-sm;
+  }
+  .data-table th {
+    @apply border-b border-slate-200 bg-slate-50 px-5 py-4 text-xs font-semibold uppercase tracking-wider text-muted;
+  }
+  .data-table td {
+    @apply border-b border-slate-100 px-5 py-4;
+  }
+}
