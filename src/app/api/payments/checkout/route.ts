@@ -38,8 +38,15 @@ export const POST = api(async (request: Request) => {
     const existing = await client.checkout.sessions.retrieve(
       payment.stripeSessionId,
     );
-    if (existing.status === "open" && existing.url)
-      return json({ url: existing.url });
+    if (existing.status === "open" && existing.url) {
+      if (
+        existing.payment_method_types.length === 1 &&
+        existing.payment_method_types[0] === "card"
+      )
+        return json({ url: existing.url });
+      // Retire checkouts created before the card-only payment policy.
+      await client.checkout.sessions.expire(existing.id);
+    }
     if (existing.status === "complete")
       throw new ApiError(
         409,
@@ -57,6 +64,7 @@ export const POST = api(async (request: Request) => {
   const session = await client.checkout.sessions.create(
     {
       mode: "payment",
+      payment_method_types: ["card"],
       customer_email: user.email,
       client_reference_id: String(user._id),
       line_items: [
@@ -77,7 +85,7 @@ export const POST = api(async (request: Request) => {
       success_url: `${process.env.NEXTAUTH_URL}/checkout/success?courseId=${courseId}`,
       cancel_url: `${process.env.NEXTAUTH_URL}/courses/${course.slug}?checkout=cancelled`,
     },
-    { idempotencyKey: `checkout-${payment._id}` },
+    { idempotencyKey: `checkout-card-only-${payment._id}` },
   );
   await Payment.updateOne(
     { _id: payment._id },
