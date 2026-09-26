@@ -19,24 +19,32 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         const parsed = loginSchema.safeParse(credentials);
         if (!parsed.success) return null;
-        await rateLimit(`login:${parsed.data.email}`, 15);
-        await db();
-        const user = await User.findOne({ email: parsed.data.email }).select(
-          "+password",
-        );
-        // A real bcrypt hash keeps unknown-account checks comparable in cost.
-        const valid = await compare(
-          parsed.data.password,
-          user?.password ??
-            "$2b$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW",
-        );
-        if (!user || !valid || !user.active) return null;
-        return {
-          id: String(user._id),
-          email: user.email,
-          name: user.name,
-          role: user.role as "student" | "admin",
-        };
+        try {
+          await rateLimit(`login:${parsed.data.email}`, 15);
+          await db();
+          const user = await User.findOne({ email: parsed.data.email }).select(
+            "+password",
+          );
+          // A real bcrypt hash keeps unknown-account checks comparable in cost.
+          const valid = await compare(
+            parsed.data.password,
+            user?.password ??
+              "$2b$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW",
+          );
+          if (!user || !valid || !user.active) return null;
+          return {
+            id: String(user._id),
+            email: user.email,
+            name: user.name,
+            role: user.role as "student" | "admin",
+          };
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 429)
+            throw new Error("TooManyAttempts");
+          // Credentials errors are included in the response URL. Never expose
+          // database details or configuration to the browser.
+          throw new Error("AuthenticationUnavailable");
+        }
       },
     }),
   ],

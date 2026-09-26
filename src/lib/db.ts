@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { ApiError } from "./http";
 
 declare global {
   var mongooseCache:
@@ -26,6 +27,11 @@ export async function db() {
     return cache.connection;
   } catch (error) {
     cache.promise = null;
+    if (error instanceof mongoose.Error.MongooseServerSelectionError)
+      throw new ApiError(
+        503,
+        "The database is temporarily unavailable. Please try again later.",
+      );
     throw error;
   }
 }

@@ -4,10 +4,25 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { ArrowUpRight, BookOpen, LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 export function Navbar() {
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
   const path = usePathname();
+  const [signingOut, setSigningOut] = useState(false);
+  async function logout() {
+    setSigningOut(true);
+    try {
+      await signOut({ redirect: false, callbackUrl: "/" });
+      // Keep the browser on its current origin, including local preview ports.
+      // A full reload also discards cached pages from the authenticated session.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign("/");
+    } catch {
+      toast.error("Unable to sign out. Please try again.");
+      setSigningOut(false);
+    }
+  }
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-paper/95 backdrop-blur">
       <nav
@@ -63,7 +78,8 @@ export function Navbar() {
               <button
                 className="btn-ghost"
                 aria-label="Sign out"
-                onClick={() => signOut({ callbackUrl: "/" })}
+                disabled={signingOut}
+                onClick={logout}
               >
                 <LogOut size={17} />
               </button>
@@ -109,9 +125,10 @@ export function Navbar() {
           {session ? (
             <button
               className="btn-secondary"
-              onClick={() => signOut({ callbackUrl: "/" })}
+              disabled={signingOut}
+              onClick={logout}
             >
-              Sign out
+              {signingOut ? "Signing out…" : "Sign out"}
             </button>
           ) : (
             <Link href="/login" className="btn" onClick={() => setOpen(false)}>

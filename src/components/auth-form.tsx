@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,7 +14,6 @@ const formSchema = loginSchema.extend({ name: z.string().optional() });
 type Fields = z.infer<typeof formSchema>;
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const registering = mode === "register";
-  const router = useRouter();
   const params = useSearchParams();
   const form = useForm<Fields>({
     resolver: zodResolver(registering ? registerSchema : formSchema),
@@ -25,26 +24,37 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     },
   });
   async function submit(values: Fields) {
+    let accountCreated = false;
     try {
-      if (registering)
+      if (registering) {
         await request("/api/auth/register", {
           method: "POST",
           body: JSON.stringify(values),
         });
+        accountCreated = true;
+      }
       const result = await signIn("credentials", {
         email: values.email,
         password: values.password,
         redirect: false,
       });
-      if (result?.error)
+      if (!result?.ok || result.error)
         throw new Error(
-          "Unable to sign in. Check your credentials or try again later.",
+          result?.error === "CredentialsSignin"
+            ? "Incorrect email or password. Please try again."
+            : result?.error === "TooManyAttempts"
+              ? "Too many sign-in attempts. Please try again later."
+              : "Sign-in is temporarily unavailable. Please try again later.",
         );
       toast.success(registering ? "Welcome to LearnX!" : "Welcome back!");
-      router.push(safeCallback(params.get("callbackUrl")));
-      router.refresh();
+      // A fresh document clears prefetched signed-out routes after the cookie changes.
+      window.location.assign(safeCallback(params.get("callbackUrl")));
     } catch (error) {
-      form.setError("root", { message: (error as Error).message });
+      form.setError("root", {
+        message: accountCreated
+          ? "Your account was created, but automatic sign-in failed. Use the Log in link below to sign in."
+          : (error as Error).message,
+      });
     }
   }
   return (

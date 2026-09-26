@@ -629,6 +629,42 @@ test(
       await page
         .getByRole("heading", { name: /Welcome back, Browser/ })
         .waitFor();
+      await page.getByRole("button", { name: "Sign out", exact: true }).click();
+      await page.waitForURL(`${base}/`);
+      assert.deepEqual(
+        await (await page.request.get(`${base}/api/auth/session`)).json(),
+        {},
+      );
+      await page.getByRole("link", { name: "Log in", exact: true }).click();
+      await page.getByLabel("Email address").fill("browser@lms.test");
+      await page
+        .getByLabel("Password", { exact: true })
+        .fill("incorrect-password");
+      await page.getByRole("button", { name: "Log in", exact: true }).click();
+      await page
+        .getByRole("alert")
+        .filter({ hasText: "Incorrect email or password" })
+        .waitFor();
+      await page.getByLabel("Password", { exact: true }).fill(password);
+      await page.getByRole("button", { name: "Log in", exact: true }).click();
+      await page.waitForURL("**/dashboard");
+      await page
+        .getByRole("heading", { name: /Welcome back, Browser/ })
+        .waitFor();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.getByRole("button", { name: "Toggle menu" }).click();
+      await page.getByRole("button", { name: "Sign out", exact: true }).click();
+      await page.waitForURL(`${base}/`);
+      assert.deepEqual(
+        await (await page.request.get(`${base}/api/auth/session`)).json(),
+        {},
+      );
+      await page.goto(`${base}/login?callbackUrl=%2Fdashboard%2Fcourses`);
+      await page.getByLabel("Email address").fill("browser@lms.test");
+      await page.getByLabel("Password", { exact: true }).fill(password);
+      await page.getByRole("button", { name: "Log in", exact: true }).click();
+      await page.waitForURL("**/dashboard/courses");
+      await page.setViewportSize({ width: 1440, height: 1000 });
       await page.goto(`${base}/admin`);
       await page.waitForURL("**/dashboard");
       await page.goto(`${base}/courses/test-free`);
