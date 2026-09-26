@@ -754,6 +754,47 @@ test(
         path: "test-results/admin-desktop.png",
         fullPage: true,
       });
+      // Exercise both upload stalls without depending on external media services.
+      await page.goto(`${base}/admin/courses/new`);
+      await page.clock.install();
+      await page.route("**/api/uploads/sign", () => {});
+      await page
+        .getByLabel("Upload image")
+        .setInputFiles("seed-assets/design.jpg");
+      await page.getByText("Preparing upload…", { exact: true }).waitFor();
+      await page.clock.fastForward(21000);
+      await page
+        .getByRole("alert")
+        .filter({ hasText: "Upload authorization timed out" })
+        .waitFor();
+      assert.equal(await page.getByLabel("Upload image").isEnabled(), true);
+      await page.unroute("**/api/uploads/sign");
+      await page.route("**/api/uploads/sign", (route) =>
+        route.fulfill({
+          json: {
+            params: {},
+            signature: "test",
+            apiKey: "test",
+            cloudName: "test",
+            resourceType: "image",
+          },
+        }),
+      );
+      await page.route("https://api.cloudinary.com/**", () => {});
+      await page
+        .getByLabel("Upload image")
+        .setInputFiles("seed-assets/design.jpg");
+      await page
+        .getByText("Connecting to Cloudinary…", { exact: true })
+        .waitFor();
+      await page.clock.fastForward(31000);
+      await page
+        .getByRole("alert")
+        .filter({ hasText: "Upload stalled" })
+        .waitFor();
+      assert.equal(await page.getByLabel("Upload image").isEnabled(), true);
+      await page.unroute("**/api/uploads/sign");
+      await page.unroute("https://api.cloudinary.com/**");
       await page.goto(`${base}/admin/categories`);
       await page
         .getByRole("textbox", { name: "Name", exact: true })

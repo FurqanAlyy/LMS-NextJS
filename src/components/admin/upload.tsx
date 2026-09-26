@@ -21,6 +21,7 @@ export function Upload({
 }) {
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState("Preparing upload…");
   const [error, setError] = useState("");
   async function upload(file?: File) {
     if (!file) return;
@@ -38,11 +39,27 @@ export function Upload({
     }
     setBusy(true);
     setProgress(0);
+    setPhase("Preparing upload…");
     try {
-      const signed = await request<Signature>("/api/uploads/sign", {
-        method: "POST",
-        body: JSON.stringify({ kind }),
-      });
+      let signed: Signature;
+      const controller = new AbortController();
+      const preparationTimer = setTimeout(() => controller.abort(), 20000);
+      try {
+        signed = await request<Signature>("/api/uploads/sign", {
+          method: "POST",
+          body: JSON.stringify({ kind }),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (controller.signal.aborted)
+          throw new Error(
+            "Upload authorization timed out. Check your connection and try again.",
+          );
+        throw error;
+      } finally {
+        clearTimeout(preparationTimer);
+      }
+      setPhase("Connecting to Cloudinary…");
       const form = new FormData();
       form.append("file", file);
       form.append("api_key", signed.apiKey);
@@ -52,31 +69,68 @@ export function Upload({
       );
       const result = await new Promise<Result>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
+        let stallTimer: ReturnType<typeof setTimeout> | undefined;
+        const fail = (message: string) => {
+          clearTimeout(stallTimer);
+          reject(new Error(message));
+        };
+        const watchProgress = (processing = false) => {
+          clearTimeout(stallTimer);
+          stallTimer = setTimeout(
+            () => {
+              fail(
+                processing
+                  ? "Cloudinary is taking too long to process this file. Please try again."
+                  : "Upload stalled while connecting or sending data to Cloudinary. Check your network, VPN, or firewall, then try again.",
+              );
+              xhr.abort();
+            },
+            processing ? 180000 : 30000,
+          );
+        };
         xhr.open(
           "POST",
           `https://api.cloudinary.com/v1_1/${signed.cloudName}/${signed.resourceType}/upload`,
         );
         xhr.timeout = 600000;
         xhr.upload.onprogress = (e) => {
+          setPhase("Uploading…");
+          watchProgress();
           if (e.lengthComputable)
             setProgress(Math.round((e.loaded / e.total) * 100));
         };
+        xhr.upload.onload = () => {
+          setProgress(100);
+          setPhase("Processing upload…");
+          watchProgress(true);
+        };
+        xhr.onloadend = () => clearTimeout(stallTimer);
         xhr.onload = () => {
           try {
             const data = JSON.parse(xhr.responseText);
-            if (xhr.status >= 200 && xhr.status < 300) resolve(data);
-            else reject(new Error(data.error?.message ?? "Upload failed"));
+            if (xhr.status >= 200 && xhr.status < 300) {
+              if (!data.secure_url || !data.public_id)
+                throw new Error("Missing upload result");
+              resolve(data);
+            } else reject(new Error(data.error?.message ?? "Upload failed"));
           } catch {
             reject(new Error("Invalid upload response"));
           }
         };
         xhr.onerror = () =>
-          reject(
-            new Error("Upload failed. Check your connection and try again."),
+          fail(
+            "Could not reach Cloudinary. Check your network, VPN, or firewall and try again.",
           );
+        xhr.onabort = () => fail("Upload cancelled. Please try again.");
         xhr.ontimeout = () =>
-          reject(new Error("Upload timed out. Try a smaller file."));
-        xhr.send(form);
+          fail("Upload timed out. Try a smaller file or a faster connection.");
+        watchProgress();
+        try {
+          xhr.send(form);
+        } catch (error) {
+          clearTimeout(stallTimer);
+          reject(error);
+        }
       });
       onUploaded(result);
     } catch (e) {
@@ -128,9 +182,7 @@ export function Upload({
             />
           </div>
           <p className="mt-2 text-xs text-muted">
-            {progress === 100
-              ? "Processing upload…"
-              : `Uploading… ${progress}%`}
+            {phase === "Uploading…" ? `Uploading… ${progress}%` : phase}
           </p>
         </div>
       )}
